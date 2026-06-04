@@ -14,6 +14,7 @@ import {
 import { mockProducts, sidebarCategories } from '../services/products';
 import { ProductCard } from '../components/ProductCard';
 import heroImg from '../assets/images/background.png';
+import type { Product } from '../types/product';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -32,7 +33,7 @@ const categoryIcons: Record<string, React.ReactNode> = {
   heart: <HeartPlus className="w-4 h-4" strokeWidth={1.8} />,
 };
 
-export function ProductsPage() {
+export function ProductsPage({ onBuy }: { onBuy?: (product: Product) => void }) {
   const [activeCategory, setActiveCategory] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [email, setEmail] = useState('');
@@ -226,7 +227,7 @@ export function ProductsPage() {
           {paginated.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
               {paginated.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id} product={product} onBuy={() => onBuy?.(product)} />
               ))}
             </div>
           ) : (
@@ -325,7 +326,7 @@ export function ProductsPage() {
         >
           {mockProducts.map((product) => (
             <div key={product.id} className="w-52 shrink-0">
-              <ProductCard product={product} compact />
+              <ProductCard product={product} compact onBuy={() => onBuy?.(product)} />
             </div>
           ))}
         </div>

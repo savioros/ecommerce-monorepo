@@ -3,6 +3,7 @@ import type { Product } from '../types/product';
 interface Props {
   product: Product;
   compact?: boolean;
+  onBuy?: () => void;
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -23,7 +24,7 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-export function ProductCard({ product, compact = false }: Props) {
+export function ProductCard({ product, compact = false, onBuy }: Props) {
   return (
     <article className="bg-white rounded-xl overflow-hidden border border-gray-100 hover:shadow-md transition-shadow flex flex-col">
       {/* Image placeholder */}
@@ -68,6 +69,7 @@ export function ProductCard({ product, compact = false }: Props) {
           </button>
           <button
             type="button"
+            onClick={onBuy}
             className="flex-1 bg-gray-900 text-white text-xs font-medium py-2 rounded-lg hover:bg-gray-800 transition-colors cursor-pointer"
           >
             Comprar
