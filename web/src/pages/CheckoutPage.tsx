@@ -12,8 +12,11 @@ import {
   FileText,
   ChevronRight,
   Tag,
+  Loader2,
 } from 'lucide-react';
 import type { Product } from '../types/product';
+import { createOrder } from '../services/orders';
+import type { OrderResponse } from '../services/orders';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -506,11 +509,15 @@ function ReviewStep({
   payment,
   onBack,
   onFinalize,
+  isLoading,
+  error,
 }: {
   shipping: ShippingData;
   payment: PaymentData;
   onBack: () => void;
   onFinalize: () => void;
+  isLoading: boolean;
+  error: string | null;
 }) {
   return (
     <div className="space-y-6">
@@ -556,21 +563,38 @@ function ReviewStep({
         </p>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 border border-gray-200 text-gray-700 font-semibold py-3.5 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer"
+          disabled={isLoading}
+          className="flex-1 border border-gray-200 text-gray-700 font-semibold py-3.5 rounded-xl hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           Voltar
         </button>
         <button
           type="button"
           onClick={onFinalize}
-          className="flex-1 bg-gray-900 text-white font-semibold py-3.5 rounded-xl hover:bg-gray-800 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+          disabled={isLoading}
+          className="flex-1 bg-gray-900 text-white font-semibold py-3.5 rounded-xl hover:bg-gray-800 disabled:opacity-60 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 cursor-pointer"
         >
-          Finalizar Compra
-          <Check className="w-4 h-4" strokeWidth={2.5} />
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Processando...
+            </>
+          ) : (
+            <>
+              Finalizar Compra
+              <Check className="w-4 h-4" strokeWidth={2.5} />
+            </>
+          )}
         </button>
       </div>
     </div>
@@ -673,6 +697,96 @@ function OrderSummary({
   );
 }
 
+// ─── Success Screen ───────────────────────────────────────────────────────────
+
+function SuccessScreen({
+  order,
+  total,
+  onBackToStore,
+}: {
+  order: OrderResponse;
+  total: number;
+  onBackToStore: () => void;
+}) {
+  return (
+    <div className="min-h-screen bg-[#f5f5f5] text-gray-900 font-sans flex flex-col">
+      <header className="bg-white border-b border-gray-100 sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <a href="/" className="flex items-center gap-2 font-bold text-base text-gray-900">
+            <PawPrint className="w-5 h-5" strokeWidth={2.2} />
+            E-pets
+          </a>
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Lock className="w-4 h-4" />
+            Checkout Seguro
+          </div>
+        </div>
+      </header>
+
+      <div className="flex-1 flex items-center justify-center px-4 py-16">
+        <div className="w-full max-w-md">
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center space-y-6">
+            <div className="flex justify-center">
+              <div className="w-20 h-20 bg-gray-900 rounded-full flex items-center justify-center">
+                <Check className="w-10 h-10 text-white" strokeWidth={2.5} />
+              </div>
+            </div>
+
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 mb-1">Pedido realizado!</h1>
+              <p className="text-sm text-gray-500">
+                Seu pedido <span className="font-semibold text-gray-900">#{order.id}</span> foi confirmado com sucesso.
+              </p>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-4 text-left space-y-2.5">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Status</span>
+                <span className="font-semibold text-gray-900">{order.status}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Pagamento</span>
+                <span className="font-semibold text-gray-900">
+                  {PAYMENT_LABELS[order.payment_method as PaymentMethod] ?? order.payment_method}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Total pago</span>
+                <span className="font-bold text-gray-900">R${total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <p className="text-sm text-gray-500">
+              Enviamos uma confirmação para{' '}
+              <span className="font-medium text-gray-700">{order.customer_email}</span>.
+            </p>
+
+            <button
+              type="button"
+              onClick={onBackToStore}
+              className="w-full bg-gray-900 text-white font-semibold py-3.5 rounded-xl hover:bg-gray-800 transition-colors cursor-pointer"
+            >
+              Voltar à Loja
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <footer className="bg-white border-t border-gray-100">
+        <div className="max-w-6xl mx-auto px-6 py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 text-xs text-gray-400">
+            <span>Direitos Autorais © 2026 E-pets. Todos os Direitos Reservados.</span>
+            <div className="flex gap-5">
+              <a href="#" className="hover:text-gray-600 transition-colors">Termos de Uso</a>
+              <a href="#" className="hover:text-gray-600 transition-colors">Política de Privacidade</a>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
@@ -696,45 +810,41 @@ export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
     cardCvv: '',
     installments: '1',
   });
+  const [isLoading, setIsLoading] = useState(false);
+  const [orderResult, setOrderResult] = useState<OrderResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const discount = computeDiscount(product.price, payment);
   const total = product.price - discount;
 
-  const handleFinalize = () => {
-    const orderData = {
-      produto: {
-        id: product.id,
-        nome: product.name,
-        categoria: product.category,
-        preco: product.price,
-      },
-      envio: {
-        email: shipping.email,
-        nomeCompleto: shipping.fullName,
-        endereco: `${shipping.address}, ${shipping.number}${shipping.complement ? `, ${shipping.complement}` : ''}`,
-        cidade: shipping.city,
-        estado: shipping.state,
-        cep: shipping.zip,
-        salvarInformacoes: shipping.saveInfo,
-      },
-      pagamento: {
-        metodo: payment.method,
-        ...(payment.method === 'credit_card' && {
-          numeroCartao: payment.cardNumber,
-          nomeNoCartao: payment.cardName,
-          validade: payment.cardExpiry,
-          parcelas: Number(payment.installments),
-        }),
-      },
-      resumo: {
-        subtotal: product.price,
-        desconto: discount,
-        frete: 0,
-        total,
-      },
-    };
-    console.log('Pedido finalizado:', JSON.stringify(orderData, null, 2));
+  const handleFinalize = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const order = await createOrder({
+        customer_email: shipping.email,
+        customer_name: shipping.fullName,
+        street: shipping.address,
+        street_number: shipping.number,
+        complement: shipping.complement || undefined,
+        city: shipping.city,
+        state: shipping.state,
+        zip_code: shipping.zip,
+        payment_method: payment.method,
+        installments: payment.method === 'credit_card' ? Number(payment.installments) : undefined,
+        amount: Math.round(total * 100),
+      });
+      setOrderResult(order);
+    } catch {
+      setError('Não foi possível processar seu pedido. Verifique sua conexão e tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  if (orderResult) {
+    return <SuccessScreen order={orderResult} total={total} onBackToStore={onBack} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f5f5] text-gray-900 font-sans flex flex-col">
@@ -792,6 +902,8 @@ export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
                   payment={payment}
                   onBack={() => setStep('payment')}
                   onFinalize={handleFinalize}
+                  isLoading={isLoading}
+                  error={error}
                 />
               )}
             </div>
