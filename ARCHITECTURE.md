@@ -39,9 +39,9 @@ pagamento sem tocar no core do negócio.
 ## Como os serviços se comunicam
 
 1. Usuário interage com o React
-2. React faz POST /api/orders para o Laravel
+2. React faz POST /api/orders para o Laravel com os dados do pedido (sem dados de cartão)
 3. Laravel salva o pedido com status PENDENTE
-4. Laravel faz POST /api/payments para o Spring Boot
+4. Laravel faz POST /api/payments para o Spring Boot com amount e dados de cartão
 5. Spring Boot processa e responde com APROVADO ou REJEITADO
 6. Laravel atualiza o status do pedido no banco
 7. Laravel retorna o pedido atualizado para o React
