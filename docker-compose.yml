@@ -1,0 +1,60 @@
+services:
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile.dev
+    ports:
+      - "${WEB_PORT:-5173}:5173"
+    volumes:
+      # Bind mount espelha o código local para hot reload
+      - ./web:/app
+      # Volume nomeado preserva node_modules da imagem (não sobrescrito pelo bind mount)
+      - web_node_modules:/app/node_modules
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_APP_NAME: ${VITE_APP_NAME:-Petshop}
+      # Ativar se o Docker não propagar eventos de filesystem (ver .env.example)
+      VITE_WATCH_POLL: ${VITE_WATCH_POLL:-}
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile.dev
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      # Bind mount espelha o código local; api/.env incluído no mount
+      - ./api:/var/www/html
+      # Volume nomeado preserva vendor da imagem (não sobrescrito pelo bind mount)
+      - api_vendor:/var/www/html/vendor
+    environment:
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: ${POSTGRES_DB:-petshop}
+      DB_USERNAME: ${POSTGRES_USER:-petshop}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-petshop}
+      POSTGRES_USER: ${POSTGRES_USER:-petshop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  web_node_modules:
+  api_vendor:
+  postgres_data:
