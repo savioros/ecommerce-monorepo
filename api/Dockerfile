@@ -18,7 +18,8 @@ RUN composer install --no-interaction --no-scripts --prefer-dist --no-dev --opti
 
 COPY . .
 
-RUN chmod -R 775 storage bootstrap/cache
+RUN mkdir -p storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache
 
 EXPOSE 10000
 
