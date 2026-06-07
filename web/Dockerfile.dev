@@ -1,0 +1,12 @@
+FROM node:22-alpine
+
+WORKDIR /app
+
+# Instala dependências em camada separada para cache de build
+COPY package.json package-lock.json ./
+RUN npm ci
+
+EXPOSE 5173
+
+# --host faz o Vite escutar em 0.0.0.0, necessário para Docker
+CMD ["npm", "run", "dev", "--", "--host"]
