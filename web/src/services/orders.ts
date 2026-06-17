@@ -25,7 +25,17 @@ export interface OrderResponse {
   created_at: string;
 }
 
-export async function createOrder(payload: OrderPayload): Promise<OrderResponse> {
-  const { data } = await api.post<OrderResponse>('/api/orders', payload);
+export interface CreateOrderApiResponse {
+  order: OrderResponse;
+  client_secret: string;
+}
+
+export async function createOrder(payload: OrderPayload): Promise<CreateOrderApiResponse> {
+  const { data } = await api.post<CreateOrderApiResponse>('/api/orders', payload);
+  return data;
+}
+
+export async function confirmOrderPayment(id: number): Promise<OrderResponse> {
+  const { data } = await api.patch<OrderResponse>(`/api/orders/${id}/confirm-payment`);
   return data;
 }

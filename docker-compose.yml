@@ -13,6 +13,7 @@ services:
     environment:
       VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
       VITE_APP_NAME: ${VITE_APP_NAME:-Petshop}
+      VITE_STRIPE_PUBLISHABLE_KEY: ${VITE_STRIPE_PUBLISHABLE_KEY}
       # Ativar se o Docker não propagar eventos de filesystem (ver .env.example)
       VITE_WATCH_POLL: ${VITE_WATCH_POLL:-}
 
