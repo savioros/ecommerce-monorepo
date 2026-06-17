@@ -2,9 +2,12 @@
 
 namespace App\Modules\Orders\Services;
 
+use App\Exceptions\StripeIntegrationException;
 use App\Models\Order;
 use App\Modules\Orders\Exceptions\PaymentNotConfirmedException;
 use App\Modules\Orders\Repositories\OrderRepository;
+use Illuminate\Support\Facades\DB;
+use Stripe\Exception\ApiErrorException;
 use Stripe\StripeClient;
 
 class OrderService
@@ -16,24 +19,30 @@ class OrderService
 
     public function store(array $data): array
     {
-        $order = $this->repository->create([
-            ...$data,
-            'status' => 'PENDENTE',
-        ]);
+        return DB::transaction(function () use ($data): array {
+            $order = $this->repository->create([
+                ...$data,
+                'status' => 'PENDENTE',
+            ]);
 
-        $paymentIntent = $this->stripe->paymentIntents->create([
-            'amount' => $order->amount,
-            'currency' => 'brl',
-            'metadata' => ['order_id' => $order->id],
-        ]);
+            try {
+                $paymentIntent = $this->stripe->paymentIntents->create([
+                    'amount' => $order->amount,
+                    'currency' => 'brl',
+                    'metadata' => ['order_id' => $order->id],
+                ]);
+            } catch (ApiErrorException $e) {
+                throw new StripeIntegrationException($e);
+            }
 
-        $order->stripe_payment_intent_id = $paymentIntent->id;
-        $order->save();
+            $order->stripe_payment_intent_id = $paymentIntent->id;
+            $order->save();
 
-        return [
-            'order' => $order,
-            'client_secret' => $paymentIntent->client_secret,
-        ];
+            return [
+                'order' => $order,
+                'client_secret' => $paymentIntent->client_secret,
+            ];
+        });
     }
 
     public function confirmPayment(int $id): Order
