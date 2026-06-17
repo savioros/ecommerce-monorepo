@@ -2,6 +2,7 @@
 
 namespace App\Modules\Orders\Repositories;
 
+use App\Enums\OrderStatus;
 use App\Models\Order;
 
 class OrderRepository
@@ -16,7 +17,7 @@ class OrderRepository
         return Order::findOrFail($id);
     }
 
-    public function updateStatus(int $id, string $status): Order
+    public function updateStatus(int $id, OrderStatus $status): Order
     {
         $order = Order::findOrFail($id);
         $order->status = $status;

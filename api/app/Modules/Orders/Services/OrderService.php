@@ -2,6 +2,7 @@
 
 namespace App\Modules\Orders\Services;
 
+use App\Enums\OrderStatus;
 use App\Exceptions\StripeIntegrationException;
 use App\Models\Order;
 use App\Modules\Orders\Exceptions\PaymentNotConfirmedException;
@@ -22,7 +23,7 @@ class OrderService
         return DB::transaction(function () use ($data): array {
             $order = $this->repository->create([
                 ...$data,
-                'status' => 'PENDENTE',
+                'status' => OrderStatus::Pending,
             ]);
 
             try {
@@ -60,6 +61,6 @@ class OrderService
             );
         }
 
-        return $this->repository->updateStatus($id, 'APROVADO');
+        return $this->repository->updateStatus($id, OrderStatus::Approved);
     }
 }
