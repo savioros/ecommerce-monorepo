@@ -15,9 +15,9 @@ import {
   Loader2,
 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement } from '@stripe/react-stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import type { Product } from '../types/product';
-import { createOrder } from '../services/orders';
+import { createOrder, confirmOrderPayment } from '../services/orders';
 import type { OrderResponse } from '../services/orders';
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -570,6 +570,127 @@ function ReviewStep({
   );
 }
 
+// ─── Checkout Inner (must live inside Elements to access useStripe/useElements) ─
+
+function CheckoutInner({
+  shipping,
+  onShippingChange,
+  payment,
+  onPaymentChange,
+  total,
+  onSuccess,
+}: {
+  shipping: ShippingData;
+  onShippingChange: (updates: Partial<ShippingData>) => void;
+  payment: PaymentData;
+  onPaymentChange: (updates: Partial<PaymentData>) => void;
+  total: number;
+  onSuccess: (order: OrderResponse) => void;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [step, setStep] = useState<Step>('shipping');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [paymentMethodId, setPaymentMethodId] = useState<string | null>(null);
+
+  // Captura os dados do cartão como PaymentMethod enquanto o CardElement ainda
+  // está visível e ativo (antes de avançar para a revisão). Usar o ID salvo na
+  // confirmação evita depender do elemento montado no DOM.
+  const handlePaymentNext = async () => {
+    if (payment.method === 'credit_card') {
+      if (!stripe || !elements) return;
+      const card = elements.getElement(CardElement);
+      if (!card) return;
+      const { paymentMethod, error: pmError } = await stripe.createPaymentMethod({ type: 'card', card });
+      if (pmError || !paymentMethod) return;
+      setPaymentMethodId(paymentMethod.id);
+    }
+    setStep('review');
+  };
+
+  const handleFinalize = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { order, client_secret } = await createOrder({
+        customer_email: shipping.email,
+        customer_name: shipping.fullName,
+        street: shipping.address,
+        street_number: shipping.number,
+        complement: shipping.complement || undefined,
+        city: shipping.city,
+        state: shipping.state,
+        zip_code: shipping.zip,
+        payment_method: payment.method,
+        installments: payment.method === 'credit_card' ? Number(payment.installments) : undefined,
+        amount: Math.round(total * 100),
+      });
+
+      if (payment.method === 'credit_card') {
+        if (!stripe || !paymentMethodId) {
+          setError('Erro interno. Recarregue a página e tente novamente.');
+          return;
+        }
+        const { error: stripeError, paymentIntent } = await stripe.confirmCardPayment(client_secret, {
+          payment_method: paymentMethodId,
+        });
+        if (stripeError) {
+          setError(stripeError.message ?? 'Falha ao processar o pagamento. Tente novamente.');
+          return;
+        }
+        if (paymentIntent?.status === 'succeeded') {
+          const confirmedOrder = await confirmOrderPayment(order.id);
+          onSuccess(confirmedOrder);
+          return;
+        }
+      }
+
+      onSuccess(order);
+    } catch {
+      setError('Não foi possível processar seu pedido. Verifique sua conexão e tente novamente.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex-1 min-w-0 w-full">
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">Checkout</h1>
+      <div className="mb-6">
+        <StepIndicator current={step} />
+      </div>
+      <div className="bg-white rounded-xl border border-gray-100 p-6">
+        {step === 'shipping' && (
+          <ShippingStep
+            data={shipping}
+            onChange={onShippingChange}
+            onNext={() => setStep('payment')}
+          />
+        )}
+        {step === 'payment' && (
+          <PaymentStep
+            data={payment}
+            onChange={onPaymentChange}
+            onNext={handlePaymentNext}
+            onBack={() => setStep('shipping')}
+          />
+        )}
+        {step === 'review' && (
+          <ReviewStep
+            shipping={shipping}
+            payment={payment}
+            onBack={() => setStep('payment')}
+            onFinalize={handleFinalize}
+            isLoading={isLoading}
+            error={error}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Order Summary ────────────────────────────────────────────────────────────
 
 function OrderSummary({
@@ -759,7 +880,6 @@ function SuccessScreen({
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
-  const [step, setStep] = useState<Step>('shipping');
   const [shipping, setShipping] = useState<ShippingData>({
     email: '',
     fullName: '',
@@ -775,44 +895,10 @@ export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
     method: 'credit_card',
     installments: '1',
   });
-  const [isLoading, setIsLoading] = useState(false);
   const [orderResult, setOrderResult] = useState<OrderResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const discount = computeDiscount(product.price, payment);
   const total = product.price - discount;
-
-  const handleFinalize = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const order = await createOrder({
-        customer_email: shipping.email,
-        customer_name: shipping.fullName,
-        street: shipping.address,
-        street_number: shipping.number,
-        complement: shipping.complement || undefined,
-        city: shipping.city,
-        state: shipping.state,
-        zip_code: shipping.zip,
-        payment_method: payment.method,
-        installments: payment.method === 'credit_card' ? Number(payment.installments) : undefined,
-        amount: Math.round(total * 100),
-      });
-      // TODO: quando o Laravel criar o Payment Intent no POST /api/orders,
-      // a resposta incluirá `client_secret`. Confirmar o pagamento com:
-      //   const stripe = await stripePromise;
-      //   await stripe!.confirmCardPayment(order.client_secret, {
-      //     payment_method: { card: elements.getElement(CardElement)! },
-      //   });
-      // Usar useStripe() e useElements() dentro do Elements provider.
-      setOrderResult(order);
-    } catch {
-      setError('Não foi possível processar seu pedido. Verifique sua conexão e tente novamente.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   if (orderResult) {
     return <SuccessScreen order={orderResult} total={total} onBackToStore={onBack} />;
@@ -846,42 +932,17 @@ export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
         </button>
 
         <div className="flex flex-col lg:flex-row gap-8 items-start">
-          {/* Left: Form */}
-          <div className="flex-1 min-w-0 w-full">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Checkout</h1>
-            <div className="mb-6">
-              <StepIndicator current={step} />
-            </div>
-            <Elements stripe={stripePromise}>
-              <div className="bg-white rounded-xl border border-gray-100 p-6">
-                {step === 'shipping' && (
-                  <ShippingStep
-                    data={shipping}
-                    onChange={(u) => setShipping((p) => ({ ...p, ...u }))}
-                    onNext={() => setStep('payment')}
-                  />
-                )}
-                {step === 'payment' && (
-                  <PaymentStep
-                    data={payment}
-                    onChange={(u) => setPayment((p) => ({ ...p, ...u }))}
-                    onNext={() => setStep('review')}
-                    onBack={() => setStep('shipping')}
-                  />
-                )}
-                {step === 'review' && (
-                  <ReviewStep
-                    shipping={shipping}
-                    payment={payment}
-                    onBack={() => setStep('payment')}
-                    onFinalize={handleFinalize}
-                    isLoading={isLoading}
-                    error={error}
-                  />
-                )}
-              </div>
-            </Elements>
-          </div>
+          {/* Left: Form (CheckoutInner renders h1, StepIndicator and steps) */}
+          <Elements stripe={stripePromise}>
+            <CheckoutInner
+              shipping={shipping}
+              onShippingChange={(u) => setShipping((p) => ({ ...p, ...u }))}
+              payment={payment}
+              onPaymentChange={(u) => setPayment((p) => ({ ...p, ...u }))}
+              total={total}
+              onSuccess={setOrderResult}
+            />
+          </Elements>
 
           {/* Right: Summary */}
           <div className="w-full lg:w-80 shrink-0 lg:sticky lg:top-24">

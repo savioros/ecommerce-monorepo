@@ -19,4 +19,11 @@ class OrderController extends Controller
 
         return response()->json($result, 201);
     }
+
+    public function confirmPayment(int $id): JsonResponse
+    {
+        $order = $this->service->confirmPayment($id);
+
+        return response()->json($order);
+    }
 }

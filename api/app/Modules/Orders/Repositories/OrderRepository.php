@@ -10,4 +10,12 @@ class OrderRepository
     {
         return Order::create($data);
     }
+
+    public function updateStatus(int $id, string $status): Order
+    {
+        $order = Order::findOrFail($id);
+        $order->status = $status;
+        $order->save();
+        return $order;
+    }
 }

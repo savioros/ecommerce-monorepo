@@ -31,4 +31,9 @@ class OrderService
             'client_secret' => $paymentIntent->client_secret,
         ];
     }
+
+    public function confirmPayment(int $id): Order
+    {
+        return $this->repository->updateStatus($id, 'APROVADO');
+    }
 }
