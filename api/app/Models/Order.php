@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Model;
     'installments',
     'amount',
     'status',
+    'stripe_payment_intent_id',
 ])]
 class Order extends Model
 {

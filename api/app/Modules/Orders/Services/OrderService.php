@@ -3,6 +3,7 @@
 namespace App\Modules\Orders\Services;
 
 use App\Models\Order;
+use App\Modules\Orders\Exceptions\PaymentNotConfirmedException;
 use App\Modules\Orders\Repositories\OrderRepository;
 use Stripe\StripeClient;
 
@@ -26,6 +27,9 @@ class OrderService
             'metadata' => ['order_id' => $order->id],
         ]);
 
+        $order->stripe_payment_intent_id = $paymentIntent->id;
+        $order->save();
+
         return [
             'order' => $order,
             'client_secret' => $paymentIntent->client_secret,
@@ -34,6 +38,19 @@ class OrderService
 
     public function confirmPayment(int $id): Order
     {
+        $order = $this->repository->findById($id);
+
+        $paymentIntent = $this->stripe->paymentIntents->retrieve(
+            $order->stripe_payment_intent_id
+        );
+
+        if ($paymentIntent->status !== 'succeeded') {
+            throw new PaymentNotConfirmedException(
+                $paymentIntent->id,
+                $paymentIntent->status
+            );
+        }
+
         return $this->repository->updateStatus($id, 'APROVADO');
     }
 }
