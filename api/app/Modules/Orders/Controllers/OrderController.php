@@ -15,8 +15,15 @@ class OrderController extends Controller
 
     public function store(StoreOrderRequest $request): JsonResponse
     {
-        $order = $this->service->store($request->validated());
+        $result = $this->service->store($request->validated());
 
-        return response()->json($order, 201);
+        return response()->json($result, 201);
+    }
+
+    public function confirmPayment(int $id): JsonResponse
+    {
+        $order = $this->service->confirmPayment($id);
+
+        return response()->json($order);
     }
 }
