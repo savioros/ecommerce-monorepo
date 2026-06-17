@@ -14,9 +14,13 @@ import {
   Tag,
   Loader2,
 } from 'lucide-react';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement } from '@stripe/react-stripe-js';
 import type { Product } from '../types/product';
 import { createOrder } from '../services/orders';
 import type { OrderResponse } from '../services/orders';
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,10 +41,6 @@ interface ShippingData {
 
 interface PaymentData {
   method: PaymentMethod;
-  cardNumber: string;
-  cardName: string;
-  cardExpiry: string;
-  cardCvv: string;
   installments: string;
 }
 
@@ -81,21 +81,6 @@ function maskCEP(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8);
   if (digits.length <= 5) return digits;
   return `${digits.slice(0, 5)}-${digits.slice(5)}`;
-}
-
-function maskCardNumber(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 16);
-  return digits.replace(/(.{4})/g, '$1 ').trim();
-}
-
-function maskExpiry(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-}
-
-function maskCVV(value: string): string {
-  return value.replace(/\D/g, '').slice(0, 4);
 }
 
 // ─── Discount Logic ───────────────────────────────────────────────────────────
@@ -318,14 +303,9 @@ function PaymentStep({
   onNext: () => void;
   onBack: () => void;
 }) {
-  const isValid =
-    data.method !== 'credit_card' ||
-    !!(
-      data.cardNumber.replace(/\D/g, '').length === 16 &&
-      data.cardName.trim() &&
-      data.cardExpiry.replace(/\D/g, '').length === 4 &&
-      data.cardCvv.length >= 3
-    );
+  const [cardComplete, setCardComplete] = useState(false);
+
+  const isValid = data.method !== 'credit_card' || cardComplete;
 
   const creditCardHasDiscount = data.method === 'credit_card' && data.installments === '1';
 
@@ -366,34 +346,25 @@ function PaymentStep({
 
       {data.method === 'credit_card' && (
         <div className="space-y-3">
-          <FormInput
-            label="Número do Cartão"
-            placeholder="0000 0000 0000 0000"
-            inputMode="numeric"
-            value={data.cardNumber}
-            onChange={(e) => onChange({ cardNumber: maskCardNumber(e.target.value) })}
-          />
-          <FormInput
-            label="Nome no Cartão"
-            placeholder="COMO APARECE NO CARTÃO"
-            value={data.cardName}
-            onChange={(e) => onChange({ cardName: e.target.value.toUpperCase() })}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <FormInput
-              label="Validade"
-              placeholder="MM/AA"
-              inputMode="numeric"
-              value={data.cardExpiry}
-              onChange={(e) => onChange({ cardExpiry: maskExpiry(e.target.value) })}
-            />
-            <FormInput
-              label="CVV"
-              placeholder="000"
-              inputMode="numeric"
-              value={data.cardCvv}
-              onChange={(e) => onChange({ cardCvv: maskCVV(e.target.value) })}
-            />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-gray-600">Dados do Cartão</label>
+            <div className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-3.5 focus-within:border-gray-400 transition-colors">
+              <CardElement
+                options={{
+                  hidePostalCode: true,
+                  style: {
+                    base: {
+                      fontSize: '14px',
+                      color: '#111827',
+                      fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+                      '::placeholder': { color: '#9ca3af' },
+                    },
+                    invalid: { color: '#ef4444' },
+                  },
+                }}
+                onChange={(e) => setCardComplete(e.complete)}
+              />
+            </div>
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-gray-600">Parcelas</label>
@@ -546,10 +517,8 @@ function ReviewStep({
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900">{PAYMENT_LABELS[payment.method]}</p>
-            {payment.method === 'credit_card' && payment.cardNumber && (
-              <p className="text-sm text-gray-500">
-                •••• •••• •••• {payment.cardNumber.replace(/\s/g, '').slice(-4)} · {payment.installments}x sem juros
-              </p>
+            {payment.method === 'credit_card' && (
+              <p className="text-sm text-gray-500">{payment.installments}x sem juros</p>
             )}
           </div>
         </div>
@@ -804,10 +773,6 @@ export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
   });
   const [payment, setPayment] = useState<PaymentData>({
     method: 'credit_card',
-    cardNumber: '',
-    cardName: '',
-    cardExpiry: '',
-    cardCvv: '',
     installments: '1',
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -834,6 +799,13 @@ export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
         installments: payment.method === 'credit_card' ? Number(payment.installments) : undefined,
         amount: Math.round(total * 100),
       });
+      // TODO: quando o Laravel criar o Payment Intent no POST /api/orders,
+      // a resposta incluirá `client_secret`. Confirmar o pagamento com:
+      //   const stripe = await stripePromise;
+      //   await stripe!.confirmCardPayment(order.client_secret, {
+      //     payment_method: { card: elements.getElement(CardElement)! },
+      //   });
+      // Usar useStripe() e useElements() dentro do Elements provider.
       setOrderResult(order);
     } catch {
       setError('Não foi possível processar seu pedido. Verifique sua conexão e tente novamente.');
@@ -880,33 +852,35 @@ export function CheckoutPage({ product, onBack }: CheckoutPageProps) {
             <div className="mb-6">
               <StepIndicator current={step} />
             </div>
-            <div className="bg-white rounded-xl border border-gray-100 p-6">
-              {step === 'shipping' && (
-                <ShippingStep
-                  data={shipping}
-                  onChange={(u) => setShipping((p) => ({ ...p, ...u }))}
-                  onNext={() => setStep('payment')}
-                />
-              )}
-              {step === 'payment' && (
-                <PaymentStep
-                  data={payment}
-                  onChange={(u) => setPayment((p) => ({ ...p, ...u }))}
-                  onNext={() => setStep('review')}
-                  onBack={() => setStep('shipping')}
-                />
-              )}
-              {step === 'review' && (
-                <ReviewStep
-                  shipping={shipping}
-                  payment={payment}
-                  onBack={() => setStep('payment')}
-                  onFinalize={handleFinalize}
-                  isLoading={isLoading}
-                  error={error}
-                />
-              )}
-            </div>
+            <Elements stripe={stripePromise}>
+              <div className="bg-white rounded-xl border border-gray-100 p-6">
+                {step === 'shipping' && (
+                  <ShippingStep
+                    data={shipping}
+                    onChange={(u) => setShipping((p) => ({ ...p, ...u }))}
+                    onNext={() => setStep('payment')}
+                  />
+                )}
+                {step === 'payment' && (
+                  <PaymentStep
+                    data={payment}
+                    onChange={(u) => setPayment((p) => ({ ...p, ...u }))}
+                    onNext={() => setStep('review')}
+                    onBack={() => setStep('shipping')}
+                  />
+                )}
+                {step === 'review' && (
+                  <ReviewStep
+                    shipping={shipping}
+                    payment={payment}
+                    onBack={() => setStep('payment')}
+                    onFinalize={handleFinalize}
+                    isLoading={isLoading}
+                    error={error}
+                  />
+                )}
+              </div>
+            </Elements>
           </div>
 
           {/* Right: Summary */}
