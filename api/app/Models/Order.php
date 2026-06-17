@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\OrderStatus;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Model;
     'installments',
     'amount',
     'status',
+    'stripe_payment_intent_id',
 ])]
 class Order extends Model
 {
@@ -26,6 +28,7 @@ class Order extends Model
         return [
             'amount' => 'integer',
             'installments' => 'integer',
+            'status' => OrderStatus::class,
         ];
     }
 }
