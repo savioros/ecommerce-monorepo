@@ -8,25 +8,25 @@ E-commerce completo de petshop com SPA em React e API REST em Laravel integrada 
 
 ### Etapa 1 — Home
 
-![Etapa 1 – Home](docs/home.png)
+![Etapa 1 – Home](docs/screenshots/home.png)
 
 ### Etapa 2 — Dados de contato
 
-![Etapa 2 – Dados de contato](docs/checkout-step1.png)
+![Etapa 2 – Dados de contato](docs/screenshots/checkout-step1.png)
 
 ### Etapa 3 — Dados de pagamento
 
-![Etapa 3 – Pagamento](docs/checkout-step2.png)
+![Etapa 3 – Pagamento](docs/screenshots/checkout-step2.png)
 
 > Os dados do cartão são digitados diretamente no Stripe Elements. O backend nunca recebe ou armazena dados do cartão.
 
 ### Etapa 4 — Revisão do pedido
 
-![Etapa 4 – Revisão](docs/checkout-step3.png)
+![Etapa 4 – Revisão](docs/screenshots/checkout-step3.png)
 
 ### Confirmação
 
-![Confirmação do pedido](docs/checkout-step4.png)
+![Confirmação do pedido](docs/screenshots/checkout-step4.png)
 
 ---
 
